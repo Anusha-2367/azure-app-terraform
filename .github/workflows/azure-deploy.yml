@@ -1,56 +1,54 @@
-name: Azure Terraform CI/CD
+name: Azure Application Deployment
 
 on:
   push:
     branches:
       - main
-  workflow_dispatch:
 
 permissions:
   id-token: write
   contents: read
 
-env:
-  ARM_USE_OIDC: true
-  ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
-  ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
-  ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-
 jobs:
 
-  # ============================================================
-  # STAGE 1 - BUILD / VALIDATION
-  # ============================================================
-
+  # ==========================================
+  # Stage 1 - Build
+  # ==========================================
   build:
-    name: Stage 1 - Build
+    name: Build Application
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Check Terraform files
-        run: |
-          terraform version
-          find . -name "*.tf" -type f
+      - name: Validate Terraform
+        uses: hashicorp/setup-terraform@v3
 
       - name: Terraform Format Check
         run: terraform fmt -check -recursive
 
+      - name: Terraform Init
+        run: terraform init
 
-  # ============================================================
-  # STAGE 2 - INFRASTRUCTURE DEPLOYMENT
-  # ============================================================
+      - name: Terraform Validate
+        run: terraform validate
 
+
+  # ==========================================
+  # Stage 2 - Infrastructure Deployment
+  # ==========================================
   infrastructure:
-    name: Stage 2 - Infrastructure Deployment
+    name: Terraform Infrastructure
     needs: build
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
 
       - name: Azure Login using OIDC
         uses: azure/login@v2
@@ -58,9 +56,6 @@ jobs:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
 
       - name: Terraform Init
         run: terraform init
@@ -75,17 +70,16 @@ jobs:
         run: terraform apply -auto-approve
 
 
-  # ============================================================
-  # STAGE 3 - APPLICATION DEPLOYMENT
-  # ============================================================
-
+  # ==========================================
+  # Stage 3 - Application Deployment
+  # ==========================================
   application:
-    name: Stage 3 - Application Deployment
+    name: Deploy Application
     needs: infrastructure
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Azure Login using OIDC
@@ -95,8 +89,7 @@ jobs:
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Application deployment placeholder
-        run: |
-          echo "Infrastructure deployment completed successfully."
-          echo "Application source code is not yet present in this repository."
-          echo "Application deployment will be added when application source code is added."
+      - name: Deploy to Azure App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: app-azure-demo
