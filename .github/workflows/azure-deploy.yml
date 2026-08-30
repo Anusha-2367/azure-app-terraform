@@ -1,0 +1,102 @@
+name: Azure Terraform CI/CD
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  ARM_USE_OIDC: true
+  ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+  ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+jobs:
+
+  # ============================================================
+  # STAGE 1 - BUILD / VALIDATION
+  # ============================================================
+
+  build:
+    name: Stage 1 - Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check Terraform files
+        run: |
+          terraform version
+          find . -name "*.tf" -type f
+
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive
+
+
+  # ============================================================
+  # STAGE 2 - INFRASTRUCTURE DEPLOYMENT
+  # ============================================================
+
+  infrastructure:
+    name: Stage 2 - Infrastructure Deployment
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Azure Login using OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        run: terraform plan
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve
+
+
+  # ============================================================
+  # STAGE 3 - APPLICATION DEPLOYMENT
+  # ============================================================
+
+  application:
+    name: Stage 3 - Application Deployment
+    needs: infrastructure
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Azure Login using OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Application deployment placeholder
+        run: |
+          echo "Infrastructure deployment completed successfully."
+          echo "Application source code is not yet present in this repository."
+          echo "Application deployment will be added when application source code is added."
