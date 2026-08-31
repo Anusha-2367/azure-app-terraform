@@ -82,7 +82,8 @@ jobs:
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
       - name: Terraform Init
-        run: terraform init -input=false
+        run: terraform init -input=false -reconfigure
+
 
       - name: Terraform Validate
         run: terraform validate
