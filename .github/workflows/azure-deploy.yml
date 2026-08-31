@@ -88,6 +88,12 @@ jobs:
       - name: Terraform Validate
         run: terraform validate
 
+      - name: Import existing Resource Group
+        run: |
+          terraform import \
+            module.resource_group.azurerm_resource_group.this \
+            /subscriptions/996d1b6a-eec5-418d-b351-9af66fcd25dc/resourceGroups/Anusha-rg || true
+
       # ADD THIS STEP
       - name: Create Terraform variables file
         shell: bash
