@@ -5,45 +5,68 @@ on:
     branches:
       - main
 
+  workflow_dispatch:
+
 permissions:
   id-token: write
   contents: read
 
+env:
+  ARM_USE_OIDC: true
+  ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+  ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
 jobs:
 
-  # ==========================================
-  # Stage 1 - Build
-  # ==========================================
+  # ============================================================
+  # STAGE 1 - BUILD APPLICATION
+  # ============================================================
+
   build:
-    name: Build Application
+    name: Stage 1 - Build Application
     runs-on: ubuntu-latest
 
     steps:
+
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Validate Terraform
-        uses: hashicorp/setup-terraform@v3
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
 
-      - name: Terraform Format Check
-        run: terraform fmt -check -recursive
+      - name: Restore application
+        working-directory: AzureApp
+        run: dotnet restore
 
-      - name: Terraform Init
-        run: terraform init
+      - name: Build application
+        working-directory: AzureApp
+        run: dotnet build --configuration Release --no-restore
 
-      - name: Terraform Validate
-        run: terraform validate
+      - name: Publish application
+        working-directory: AzureApp
+        run: dotnet publish --configuration Release --output ./publish
+
+      - name: Upload application artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: azure-app
+          path: AzureApp/publish/
 
 
-  # ==========================================
-  # Stage 2 - Infrastructure Deployment
-  # ==========================================
+  # ============================================================
+  # STAGE 2 - INFRASTRUCTURE DEPLOYMENT
+  # ============================================================
+
   infrastructure:
-    name: Terraform Infrastructure
+    name: Stage 2 - Infrastructure Deployment
     needs: build
     runs-on: ubuntu-latest
 
     steps:
+
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -70,17 +93,25 @@ jobs:
         run: terraform apply -auto-approve
 
 
-  # ==========================================
-  # Stage 3 - Application Deployment
-  # ==========================================
+  # ============================================================
+  # STAGE 3 - APPLICATION DEPLOYMENT
+  # ============================================================
+
   application:
-    name: Deploy Application
+    name: Stage 3 - Application Deployment
     needs: infrastructure
     runs-on: ubuntu-latest
 
     steps:
+
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Download application artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: azure-app
+          path: ./publish
 
       - name: Azure Login using OIDC
         uses: azure/login@v2
@@ -93,3 +124,4 @@ jobs:
         uses: azure/webapps-deploy@v3
         with:
           app-name: app-azure-demo
+          package: ./publish
